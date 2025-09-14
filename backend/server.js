@@ -53,7 +53,11 @@ app.get('/api/carbon', async (req, res) => {
                 throw new Error('Gemini page size estimation failed');
             }
         } catch (geminiError) {
-            console.warn(`⚠️ Gemini page size estimation failed for ${domain}:`, geminiError.message);
+            console.error(`❌ Gemini page size estimation FAILED for ${domain}:`, {
+                error: geminiError.message,
+                stack: geminiError.stack,
+                apiKey: process.env.GEMINI_API_KEY ? 'present' : 'missing'
+            });
             
             // Use a default page size when Gemini fails
             estimatedBytes = 1000000; // 1MB default
