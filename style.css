@@ -589,7 +589,7 @@ body {
     animation: fadeInUp 0.8s ease-out;
 }
 
-/* Glow effects for particles (will be applied via Three.js) */
+/* Glow effects for particles (will be applied via Three.js)? */
 .particle-glow {
     filter: drop-shadow(0 0 10px currentColor);
 }

@@ -59,26 +59,6 @@ function showInfoPanel(website) {
     
     if (!panel) return;
     
-    // Debug: Log the website data to see what we have
-    console.log('🔍 Website data for info panel:', website);
-    console.log('🔍 energyPerVisit value:', website.energyPerVisit);
-    console.log('🔍 co2PerPageView value:', website.co2PerPageView);
-    console.log('🔍 cleanerThan value:', website.cleanerThan);
-    console.log('🔍 hostedByWebsite value:', website.hostedByWebsite);
-    console.log('🔍 rating value:', website.rating);
-    console.log('🔍 All website keys:', Object.keys(website));
-    console.log('🔍 Has energyPerVisit?', 'energyPerVisit' in website);
-    console.log('🔍 Has rating?', 'rating' in website);
-    
-    // Debug: Log Gemini data specifically
-    console.log('🤖 Gemini data check:');
-    console.log('🔍 co2Translation:', website.co2Translation);
-    console.log('🔍 energyTranslation:', website.energyTranslation);
-    console.log('🔍 cleanerThanTranslation:', website.cleanerThanTranslation);
-    console.log('🔍 websiteDescription:', website.websiteDescription);
-    console.log('🔍 estimatedPageSize:', website.estimatedPageSize);
-    console.log('🔍 pageSizeBreakdown:', website.pageSizeBreakdown);
-    
     // Update content
     if (siteName) {
         siteName.innerHTML = `<span class="site-text">${website.domain}</span> <span class="external-link">↗</span>`;
@@ -88,12 +68,14 @@ function showInfoPanel(website) {
     }
     if (siteRank) siteRank.textContent = `#${website.rank}`;
     
-    // Use Gemini translations if available, otherwise fallback to raw data
+    // Use Gemini translations if available, otherwise show raw data or unavailable
     if (siteCo2) {
         if (website.co2Translation) {
             siteCo2.textContent = website.co2Translation;
+        } else if (website.co2PerPageView) {
+            siteCo2.textContent = `${website.co2PerPageView.toFixed(2)}g`;
         } else {
-            siteCo2.textContent = website.co2PerPageView ? `${website.co2PerPageView.toFixed(2)}g` : 'Calculating...';
+            siteCo2.textContent = 'Data unavailable';
         }
     }
     
@@ -104,25 +86,24 @@ function showInfoPanel(website) {
             pageSize.textContent = `${sizeInMB} MB`;
             pageSizeRow.style.display = 'flex';
         } else {
-            pageSizeRow.style.display = 'none';
+            pageSize.textContent = 'Data unavailable';
+            pageSizeRow.style.display = 'flex';
         }
     }
     
     if (siteEnergy) {
         if (website.energyTranslation) {
             siteEnergy.textContent = website.energyTranslation;
-        } else {
-            if (website.energyPerVisit) {
-                // Show more precision for very small energy values
-                const energy = website.energyPerVisit;
-                if (energy < 0.001) {
-                    siteEnergy.textContent = `${(energy * 1000).toFixed(3)} mWh`; // Show in milliwatt-hours
-                } else {
-                    siteEnergy.textContent = `${energy.toFixed(4)} kWh`;
-                }
+        } else if (website.energyPerVisit) {
+            // Show more precision for very small energy values
+            const energy = website.energyPerVisit;
+            if (energy < 0.001) {
+                siteEnergy.textContent = `${(energy * 1000).toFixed(3)} mWh`; // Show in milliwatt-hours
             } else {
-                siteEnergy.textContent = 'Calculating...';
+                siteEnergy.textContent = `${energy.toFixed(4)} kWh`;
             }
+        } else {
+            siteEnergy.textContent = 'Data unavailable';
         }
     }
     
@@ -214,60 +195,12 @@ function hideInfoPanel() {
     }
 }
 
-// Parse CSV text into array of objects
-function parseCSV(csvText) {
-    const lines = csvText.trim().split('\n');
-    const result = [];
-    
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (line) {
-            const [rank, domain] = line.split(',');
-            if (rank && domain) {
-                result.push({
-                    rank: parseInt(rank),
-                    domain: domain.trim()
-                });
-            }
-        }
-    }
-    
-    return result;
-}
-
-// Generate random position in 3D space for particles
-function getRandomPosition(spread = 50) {
-    return {
-        x: (Math.random() - 0.5) * spread,
-        y: (Math.random() - 0.5) * spread,
-        z: (Math.random() - 0.5) * spread
-    };
-}
-
-// Map CO2 value to particle size
-function co2ToSize(co2Value, minSize = 0.5, maxSize = 3) {
-    // Clamp CO2 value to reasonable range (0-10g)
-    const clampedCo2 = Math.max(0, Math.min(10, co2Value || 1));
-    
-    // Linear mapping
-    const normalizedCo2 = clampedCo2 / 10;
-    return minSize + (normalizedCo2 * (maxSize - minSize));
-}
 
 // Get color based on green hosting status
 function getParticleColor(isGreen) {
     return isGreen ? 0x00ff44 : 0x051a05; // Pure bright green or very dark forest green (lifeless)
 }
 
-// Get glow effect for green particles
-function getGlowIntensity(isGreen) {
-    return isGreen ? 1.5 : 0.3; // Green particles glow, red particles are dim
-}
-
-// Add glow effect color
-function getGlowColor(isGreen) {
-    return isGreen ? 0x88ffaa : 0xff8888; // Lighter versions for glow
-}
 
 // Error handling
 function handleError(error, context = 'Unknown') {
@@ -281,30 +214,6 @@ function handleError(error, context = 'Unknown') {
     }
 }
 
-// Throttle function for performance
-function throttle(func, limit) {
-    let inThrottle;
-    return function() {
-        const args = arguments;
-        const context = this;
-        if (!inThrottle) {
-            func.apply(context, args);
-            inThrottle = true;
-            setTimeout(() => inThrottle = false, limit);
-        }
-    };
-}
-
-// Format numbers for display
-function formatNumber(num, decimals = 2) {
-    if (num === null || num === undefined) return 'N/A';
-    return typeof num === 'number' ? num.toFixed(decimals) : num.toString();
-}
-
-// Check if device is mobile
-function isMobile() {
-    return window.innerWidth <= 768 || /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-}
 
 // Info panel toggle functionality
 function initializeInfoPanelToggle() {

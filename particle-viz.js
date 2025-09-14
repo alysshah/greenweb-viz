@@ -13,8 +13,6 @@ class ParticleVisualization {
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
         this.animationId = null;
-        this.isAnimating = true;
-        
         // Interaction state
         this.hoveredParticle = null;
         this.selectedParticle = null;
@@ -29,10 +27,6 @@ class ParticleVisualization {
         this.orbitalRadius = 10; // Larger initial circle
         this.baseOrbitalSpeed = (Math.PI * 2) / (10 * 60); // 10 seconds per rotation at 60fps
         this.orbitalCenter = { x: 0, y: 0, z: 0 };
-        
-        // Explosion tracking
-        this.explosionQueue = [];
-        this.currentlyExploding = [];
         
         this.init();
         this.setupEventListeners();
@@ -251,8 +245,6 @@ class ParticleVisualization {
         
         // Update particle properties (size and color)
         this.updateParticleWithData(particle, website);
-        
-        this.currentlyExploding.push(particle);
     }
 
     graduallyUpdateParticlesToData(websiteData) {
@@ -619,9 +611,8 @@ class ParticleVisualization {
         this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-        // Handle mouse repulsion during preview mode
+        // Preview mode - particles orbit around center
         if (this.isPreviewMode) {
-            this.handleMouseRepulsion();
             return;
         }
 
@@ -673,28 +664,18 @@ class ParticleVisualization {
     }
 
     onMouseClick(event) {
-        console.log('Mouse click detected, preview mode:', this.isPreviewMode, 'interactions enabled:', this.interactionsEnabled); // Debug
-        
         // Skip interactions in preview mode
         if (this.isPreviewMode || !this.interactionsEnabled) {
-            console.log('Click ignored - wrong mode'); // Debug
             return;
         }
-
-        console.log('Hovered particle:', this.hoveredParticle?.userData?.domain); // Debug
 
         if (this.hoveredParticle) {
             // Select the particle using the new method
             this.selectParticle(this.hoveredParticle);
-        } else {
-            console.log('❌ No particle hovered for selection'); // Debug
         }
     }
 
     onMouseLeave() {
-        console.log('Mouse left canvas'); // Debug
-        this.isMouseOverCanvas = false;
-        
         if (this.hoveredParticle) {
             this.resetParticleHover(this.hoveredParticle);
             this.hoveredParticle = null;
@@ -711,46 +692,6 @@ class ParticleVisualization {
         }
     }
 
-    handleMouseRepulsion() {
-        // Convert mouse position to world coordinates
-        const mouseWorld = new THREE.Vector3(this.mouse.x, this.mouse.y, 0);
-        mouseWorld.unproject(this.camera);
-        
-        let particlesAffected = 0;
-        
-        // Apply repulsion to all particles during preview mode
-        this.particles.forEach(particle => {
-            const distance = particle.position.distanceTo(mouseWorld);
-            const repulsionRadius = 0.8; // Radius of repulsion effect
-            const repulsionStrength = 0.3; // Strength of repulsion
-            
-            if (distance < repulsionRadius && distance > 0) {
-                particlesAffected++;
-                
-                // Calculate repulsion direction (away from mouse)
-                const repulsionDir = particle.position.clone().sub(mouseWorld).normalize();
-                
-                // Apply repulsion force
-                const force = (repulsionRadius - distance) / repulsionRadius * repulsionStrength;
-                particle.position.add(repulsionDir.multiplyScalar(force));
-                
-                // Keep particles within the orbital circle
-                const distanceFromCenter = Math.sqrt(particle.position.x * particle.position.x + particle.position.y * particle.position.y);
-                const maxRadius = 0.6; // Slightly larger than the orbital radius
-                
-                if (distanceFromCenter > maxRadius) {
-                    const angle = Math.atan2(particle.position.y, particle.position.x);
-                    particle.position.x = Math.cos(angle) * maxRadius;
-                    particle.position.y = Math.sin(angle) * maxRadius;
-                }
-            }
-        });
-        
-        // Debug feedback (remove in production)
-        if (particlesAffected > 0) {
-            console.log(`🖱️ Mouse repulsion affecting ${particlesAffected} particles`);
-        }
-    }
 
     showSelectionBorder(particle) {
         // Remove existing selection border
@@ -953,14 +894,10 @@ class ParticleVisualization {
     animate() {
         this.animationId = requestAnimationFrame(() => this.animate());
 
-        if (this.isAnimating) {
-            const time = Date.now() * 0.001;
-            const currentTime = Date.now();
+        const time = Date.now() * 0.001;
+        const currentTime = Date.now();
 
-            // Handle mouse repulsion during orbital mode (when particles are spinning)
-            if (this.animationState === 'orbital') {
-                this.handleMouseRepulsion();
-            }
+        // Orbital mode - particles continue spinning
 
             this.particles.forEach((particle, index) => {
                 if (!particle.userData) return;
@@ -990,7 +927,6 @@ class ParticleVisualization {
                         break;
                 }
             });
-        }
 
         this.renderer.render(this.scene, this.camera);
     }
@@ -1046,11 +982,6 @@ class ParticleVisualization {
             // Update final position for floating animation
             particle.userData.finalPosition = finalPos;
             
-            // Remove from exploding array
-            const index = this.currentlyExploding.indexOf(particle);
-            if (index > -1) {
-                this.currentlyExploding.splice(index, 1);
-            }
             return;
         }
         

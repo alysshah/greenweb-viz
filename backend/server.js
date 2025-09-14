@@ -9,8 +9,21 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'your-api-key
 app.use(cors());
 app.use(express.json());
 
+// Serve static files only in development (not on Vercel)
+if (process.env.NODE_ENV !== 'production') {
+    // Serve static files from the parent directory for local development
+    app.use(express.static('../'));
+}
+
 // Simple cache to avoid repeated API calls
 const cache = new Map();
+
+// Cache management endpoint
+app.post('/api/clear-cache', (req, res) => {
+    cache.clear();
+    console.log('🗑️ Backend cache cleared');
+    res.json({ success: true, message: 'Cache cleared' });
+});
 
 // Carbon data endpoint - using the new /data endpoint
 app.get('/api/carbon', async (req, res) => {
@@ -42,23 +55,17 @@ app.get('/api/carbon', async (req, res) => {
         } catch (geminiError) {
             console.warn(`⚠️ Gemini page size estimation failed for ${domain}:`, geminiError.message);
             
-            // Fallback to simple estimation based on domain type
-            if (domain.includes('amazon') || domain.includes('ebay') || domain.includes('shopify')) {
-                estimatedBytes = 2000000; // 2MB for e-commerce
-            } else if (domain.includes('youtube') || domain.includes('netflix') || domain.includes('twitch')) {
-                estimatedBytes = 5000000; // 5MB for video sites
-            } else if (domain.includes('facebook') || domain.includes('instagram') || domain.includes('twitter')) {
-                estimatedBytes = 3000000; // 3MB for social media
-            } else if (domain.includes('google') || domain.includes('wikipedia') || domain.includes('github')) {
-                estimatedBytes = 500000; // 500KB for search/utility sites
-            } else {
-                estimatedBytes = 1000000; // 1MB default
-            }
-            
-            console.log(`📊 Using fallback page size for ${domain}: ${estimatedBytes} bytes`);
+            // No fallback - return unavailable state
+            console.log(`📊 Page size estimation unavailable for ${domain}`);
+            return res.json({
+                co2PerPageView: null,
+                energyPerVisit: null,
+                cleanerThan: null,
+                rating: 'Unavailable',
+                estimatedPageSize: null,
+                unavailable: true
+            });
         }
-        
-        console.log(`📊 Final page size for ${domain}: ${estimatedBytes} bytes`);
         
         // Use the new /data endpoint
         const response = await fetch(`https://api.websitecarbon.com/data?bytes=${estimatedBytes}&green=${green}`);
@@ -71,13 +78,14 @@ app.get('/api/carbon', async (req, res) => {
         
         // Transform the response to match our expected format
         const transformedData = {
-            co2PerPageView: data.gco2e || 1.0,
-            energyPerVisit: data.statistics?.energy || 2.0,
-            cleanerThan: data.cleanerThan || 0.5,
+            co2PerPageView: data.gco2e || null,
+            energyPerVisit: data.statistics?.energy || null,
+            cleanerThan: data.cleanerThan || null,
             bytes: data.bytes,
             green: data.green === 1,
-            rating: data.rating,
-            estimatedPageSize: estimatedBytes
+            rating: data.rating || 'Unavailable',
+            estimatedPageSize: estimatedBytes,
+            unavailable: !data.gco2e && !data.statistics?.energy && !data.cleanerThan
         };
         
         // Cache for 1 hour
@@ -128,31 +136,41 @@ app.get('/api/tranco', async (req, res) => {
     try {
         console.log('📝 Fetching Tranco top 200 websites...');
         
-        // First, get the latest list metadata (try today, then yesterday)
-        const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10).replace(/-/g, '');
-        
-        console.log(`📅 Trying list for date: ${today}`);
-        let listResponse = await fetch(`https://tranco-list.eu/api/lists/date/${today}`);
-        
-        // If today's list isn't available, try yesterday
-        if (!listResponse.ok) {
-            console.log(`📅 Today's list not available, trying: ${yesterday}`);
-            listResponse = await fetch(`https://tranco-list.eu/api/lists/date/${yesterday}`);
+        // Try multiple recent dates to find an available list
+        const dates = [];
+        for (let i = 0; i < 7; i++) {
+            const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+            dates.push(date.toISOString().slice(0, 10).replace(/-/g, ''));
         }
         
-        if (!listResponse.ok) {
-            throw new Error(`Tranco list API error: ${listResponse.status}`);
+        let listData = null;
+        let lastError = null;
+        
+        for (const date of dates) {
+            try {
+                console.log(`📅 Trying list for date: ${date}`);
+                const listResponse = await fetch(`https://tranco-list.eu/api/lists/date/${date}`);
+                
+                if (listResponse.ok) {
+                    const data = await listResponse.json();
+                    if (data.available) {
+                        listData = data;
+                        console.log(`📋 Found available list for ${date}: ${data.list_id}`);
+                        break;
+                    }
+                }
+            } catch (error) {
+                lastError = error;
+                console.log(`📅 Date ${date} failed: ${error.message}`);
+            }
         }
         
-        const listData = await listResponse.json();
-        console.log(`📋 List ID: ${listData.list_id}, Available: ${listData.available}`);
-        
-        if (!listData.available) {
-            throw new Error('Latest list not available yet');
+        if (!listData) {
+            throw new Error(`No available Tranco lists found. Last error: ${lastError?.message || 'Unknown'}`);
         }
         
         // Now fetch the actual list data
+        console.log(`📥 Downloading list data from: ${listData.download}`);
         const downloadResponse = await fetch(listData.download);
         
         if (!downloadResponse.ok) {
@@ -254,116 +272,6 @@ Respond with JSON only:
     }
 });
 
-// Gemini AI endpoint for page analysis and data translation
-app.post('/api/gemini/analyze', async (req, res) => {
-    const { domain, pageData, carbonData } = req.body;
-    
-    try {
-        // Check cache first
-        if (cache.has(`gemini_${domain}`)) {
-            console.log(`⚡ Using cached Gemini analysis for ${domain}`);
-            return res.json(cache.get(`gemini_${domain}`));
-        }
-        
-        console.log(`🤖 Analyzing ${domain} with Gemini AI...`);
-        
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        
-        // Create prompt for page size estimation and data translation
-        const prompt = `
-You are an expert web performance analyst. Analyze this website and provide detailed insights:
-
-Domain: ${domain}
-Page Title: ${pageData?.title || 'Unknown'}
-Meta Description: ${pageData?.description || 'Unknown'}
-Page Type: ${pageData?.type || 'Unknown'}
-
-Current Carbon Data:
-- CO₂ per visit: ${carbonData?.co2PerPageView || 'Unknown'}g
-- Energy per visit: ${carbonData?.energyPerVisit || 'Unknown'} kWh
-- Cleaner than: ${carbonData?.cleanerThan || 'Unknown'}% of sites
-- Green hosting: ${carbonData?.green || 'Unknown'}
-
-For page size estimation, consider:
-- Domain type (e-commerce, social media, news, search, etc.)
-- Typical content for this type of site (images, videos, ads, scripts)
-- Modern web standards and optimization practices
-- Mobile vs desktop considerations
-- CDN usage and caching strategies
-
-For translations, make them relatable and educational:
-- Use everyday objects and activities people understand
-- Be specific and accurate
-- Make environmental impact clear
-
-Please provide:
-1. Estimated page size in bytes (realistic based on domain analysis)
-2. Page size breakdown explanation (what contributes to the size)
-3. Translate CO₂ data into relatable terms
-4. Translate energy data into relatable terms  
-5. Brief website description (1-2 sentences)
-6. Cleaner than percentage in engaging way
-
-Respond in JSON format:
-{
-  "estimatedPageSize": 15000000,
-  "pageSizeBreakdown": "Typical e-commerce site with product images, reviews, and tracking scripts",
-  "co2Translation": "0.21g CO₂ = 1.5 minutes of phone charging",
-  "energyTranslation": "0.00 kWh = 0.1% of a light bulb's hourly usage", 
-  "websiteDescription": "Google - Search engine and cloud services",
-  "cleanerThanTranslation": "This site is cleaner than 51% of websites"
-}
-`;
-
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-        
-        // Parse JSON response
-        let analysis;
-        try {
-            // Extract JSON from response (in case there's extra text)
-            const jsonMatch = text.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                analysis = JSON.parse(jsonMatch[0]);
-            } else {
-                throw new Error('No JSON found in response');
-            }
-        } catch (parseError) {
-            console.warn(`⚠️ Failed to parse Gemini response for ${domain}, using fallback`);
-            analysis = {
-                estimatedPageSize: 5000000, // 5MB fallback
-                pageSizeBreakdown: `Page size analysis unavailable`,
-                co2Translation: `${carbonData?.co2PerPageView || 0}g CO₂ per visit`,
-                energyTranslation: `${carbonData?.energyPerVisit || 0} kWh per visit`,
-                websiteDescription: `${domain} - Website`,
-                cleanerThanTranslation: `Cleaner than ${Math.round((carbonData?.cleanerThan || 0.5) * 100)}% of sites`
-            };
-        }
-        
-        // Cache for 24 hours
-        cache.set(`gemini_${domain}`, analysis);
-        console.log(`✅ Gemini analysis completed for ${domain}`);
-        
-        res.json(analysis);
-        
-    } catch (error) {
-        console.error(`❌ Gemini API error for ${domain}:`, error.message);
-        
-        // Fallback to basic analysis
-        const fallbackAnalysis = {
-            estimatedPageSize: 5000000, // 5MB fallback
-            pageSizeBreakdown: `Page size analysis unavailable`,
-            co2Translation: `${carbonData?.co2PerPageView || 0}g CO₂ per visit`,
-            energyTranslation: `${carbonData?.energyPerVisit || 0} kWh per visit`,
-            websiteDescription: `${domain} - Website`,
-            cleanerThanTranslation: `Cleaner than ${Math.round((carbonData?.cleanerThan || 0.5) * 100)}% of sites`
-        };
-        
-        res.json(fallbackAnalysis);
-    }
-});
-
 // Gemini AI endpoint for carbon impact translation
 app.get('/api/gemini/carbon-impact', async (req, res) => {
     const co2PerPageView = parseFloat(req.query.co2PerPageView);
@@ -447,6 +355,13 @@ app.get('/api/gemini/carbon-impact', async (req, res) => {
             message: 'Unable to generate environmental impact comparison at this time'
         });
     }
+});
+
+// Cache management endpoint
+app.post('/api/clear-cache', (req, res) => {
+    cache.clear();
+    console.log('🗑️ Backend cache cleared');
+    res.json({ success: true, message: 'Cache cleared' });
 });
 
 // Health check endpoint
