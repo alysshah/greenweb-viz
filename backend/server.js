@@ -42,7 +42,12 @@ app.get('/api/carbon', async (req, res) => {
         // Get Gemini page size estimation first
         let estimatedBytes;
         try {
-            const prompt = `Analyze the website ${domain} and estimate its page size in bytes. Consider typical content like HTML, CSS, JavaScript, images, and other resources. Return only a JSON object with this exact format: {"estimatedPageSize": number}`;
+            const prompt = `Analyze the website ${domain} and estimate its page size in bytes. Consider typical content like HTML, CSS, JavaScript, images, and other resources. 
+
+IMPORTANT: Return ONLY a valid JSON object in this exact format:
+{"estimatedPageSize": number}
+
+Do not include any markdown formatting, code blocks, or additional text. Just the JSON object.`;
             
             // Add retry logic for network failures on Vercel
             let retries = 3;
@@ -72,10 +77,23 @@ app.get('/api/carbon', async (req, res) => {
 
                     if (response.ok) {
                         const data = await response.json();
-                        const analysis = JSON.parse(data.candidates[0].content.parts[0].text);
-                        estimatedBytes = analysis.estimatedPageSize;
-                        console.log(`🤖 Gemini estimated page size for ${domain}: ${estimatedBytes} bytes`);
-                        break; // Success, exit retry loop
+                        let responseText = data.candidates[0].content.parts[0].text;
+                        
+                        // Clean up the response text - remove markdown formatting if present
+                        responseText = responseText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+                        
+                        console.log(`🔍 Raw Gemini response for ${domain}: "${responseText}"`);
+                        
+                        try {
+                            const analysis = JSON.parse(responseText);
+                            estimatedBytes = analysis.estimatedPageSize;
+                            console.log(`🤖 Gemini estimated page size for ${domain}: ${estimatedBytes} bytes`);
+                            break; // Success, exit retry loop
+                        } catch (parseError) {
+                            console.error(`❌ JSON parse error for ${domain}:`, parseError.message);
+                            console.error(`❌ Response text: "${responseText}"`);
+                            throw new Error(`Invalid JSON response from Gemini: ${parseError.message}`);
+                        }
                     } else {
                         throw new Error(`Gemini API returned ${response.status}: ${response.statusText}`);
                     }
