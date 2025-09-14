@@ -4,7 +4,7 @@ class DataFetcher {
     constructor() {
         this.websites = [];
         this.requestDelay = 1000; // 1 second delay between requests to respect rate limits
-        this.cacheKey = 'greenWebCache_v81'; // v79 to force fresh data after cache clearing
+        this.cacheKey = 'greenWebCache_v82'; // v79 to force fresh data after cache clearing
         this.cacheExpiry = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
         
         // Clear old cache versions
