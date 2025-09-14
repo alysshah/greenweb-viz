@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Green Web Constellation - Carbon Footprint Visualization</title>
+    <link rel="stylesheet" href="style.css?v=76">
+</head>
+<body>
+    <div id="app">
+        <!-- Welcome Screen -->
+        <div id="welcome-screen" class="welcome-screen">
+            <div class="welcome-top">
+                <h1 class="welcome-title">Green Web Current</h1>
+                <p class="welcome-subtitle">Discover the carbon footprint of the world's most visited websites</p>
+            </div>
+            
+            <div class="welcome-bottom">
+                <button id="start-analysis" class="start-button">
+                    <span class="button-text">Analyze the Web</span>
+                </button>
+                
+                <div class="preview-note">
+                    <p>Explore the environmental cost of the web • Click to begin analysis</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Header (appears after analysis starts) -->
+        <header id="header" class="hidden">
+            <h1>Green Web Current</h1>
+            <p>Visualizing the carbon footprint of the top 200 websites</p>
+            <div id="loading" class="loading hidden">
+                <div class="loading-text">Loading website data...</div>
+                <div class="loading-bar">
+                    <div id="progress-bar" class="progress"></div>
+                </div>
+                <div id="loading-status">Fetching top websites...</div>
+            </div>
+        </header>
+
+        <!-- Main visualization container -->
+        <div id="viz-container">
+            <canvas id="three-canvas"></canvas>
+        </div>
+
+        <!-- Info panel (appears on hover/click) -->
+        <div id="info-panel" class="info-panel hidden">
+            <button id="info-panel-toggle" class="info-toggle-btn" title="Toggle panel">
+                <svg class="toggle-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M15 18l-6-6 6-6"/>
+                </svg>
+            </button>
+            <div class="info-content">
+                <h3 id="site-name" class="site-name-with-link"></h3>
+                <div class="info-row">
+                    <span class="label">Rank:</span>
+                    <span id="site-rank"></span>
+                </div>
+                <div class="info-row">
+                    <span class="label">CO₂ per visit:</span>
+                    <span id="site-co2"></span>
+                </div>
+                <div class="info-row" id="page-size-row">
+                    <span class="label spark-label">
+                        <svg class="spark-icon" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="16" height="16" viewBox="0,0,256,256">
+                            <g fill="#00ff88" fill-rule="nonzero" stroke="none" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="10" stroke-dasharray="" stroke-dashoffset="0" font-family="none" font-weight="none" font-size="none" text-anchor="none" style="mix-blend-mode: normal"><g transform="scale(8.53333,8.53333)"><path d="M13.95,6.805l0.654,3.06c0.593,2.773 2.759,4.939 5.532,5.532l3.06,0.654c1.024,0.219 1.024,1.68 0,1.899l-3.06,0.654c-2.773,0.593 -4.939,2.759 -5.532,5.532l-0.654,3.06c-0.219,1.024 -1.68,1.024 -1.899,0l-0.654,-3.06c-0.593,-2.773 -2.759,-4.939 -5.532,-5.532l-3.06,-0.654c-1.024,-0.219 -1.024,-1.68 0,-1.899l3.06,-0.654c2.773,-0.593 4.939,-2.759 5.532,-5.532l0.654,-3.06c0.218,-1.024 1.68,-1.024 1.899,0zM23.641,2.525l0.588,2.119c0.152,0.547 0.58,0.975 1.127,1.127l2.119,0.588c0.65,0.18 0.65,1.102 0,1.282l-2.119,0.588c-0.547,0.152 -0.975,0.58 -1.127,1.127l-0.588,2.119c-0.18,0.65 -1.102,0.65 -1.282,0l-0.588,-2.119c-0.152,-0.547 -0.58,-0.975 -1.127,-1.127l-2.119,-0.588c-0.65,-0.18 -0.65,-1.102 0,-1.282l2.119,-0.588c0.547,-0.152 0.975,-0.58 1.127,-1.127l0.588,-2.119c0.18,-0.65 1.102,-0.65 1.282,0z"></path></g></g>
+                        </svg>
+                        Estimated Page Size:
+                    </span>
+                    <span id="page-size"></span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Energy per visit:</span>
+                    <span id="site-energy"></span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Cleaner than:</span>
+                    <span id="site-cleaner"></span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Green hosting:</span>
+                    <span id="site-green"></span>
+                </div>
+                <div class="info-row" id="hosted-by-row">
+                    <span class="label">Hosted by:</span>
+                    <span id="site-host"></span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Carbon Grade:</span>
+                    <span id="site-rating"></span>
+                </div>
+                <div class="info-row" id="website-description-row">
+                    <span class="label">Description:</span>
+                    <span id="site-description"></span>
+                </div>
+                <div class="info-row" id="page-size-breakdown-row">
+                    <span class="label">Page Analysis:</span>
+                    <span id="page-size-breakdown"></span>
+                </div>
+                
+                <!-- Carbon Impact Translation Section -->
+                <div class="info-section" id="carbon-impact-section">
+                    <div class="info-row">
+                        <span class="label spark-label">
+                            <svg class="spark-icon" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="16" height="16" viewBox="0,0,256,256">
+                                <g fill="#00ff88" fill-rule="nonzero" stroke="none" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="10" stroke-dasharray="" stroke-dashoffset="0" font-family="none" font-weight="none" font-size="none" text-anchor="none" style="mix-blend-mode: normal"><g transform="scale(8.53333,8.53333)"><path d="M13.95,6.805l0.654,3.06c0.593,2.773 2.759,4.939 5.532,5.532l3.06,0.654c1.024,0.219 1.024,1.68 0,1.899l-3.06,0.654c-2.773,0.593 -4.939,2.759 -5.532,5.532l-0.654,3.06c-0.219,1.024 -1.68,1.024 -1.899,0l-0.654,-3.06c-0.593,-2.773 -2.759,-4.939 -5.532,-5.532l-3.06,-0.654c-1.024,-0.219 -1.024,-1.68 0,-1.899l3.06,-0.654c2.773,-0.593 4.939,-2.759 5.532,-5.532l0.654,-3.06c0.218,-1.024 1.68,-1.024 1.899,0zM23.641,2.525l0.588,2.119c0.152,0.547 0.58,0.975 1.127,1.127l2.119,0.588c0.65,0.18 0.65,1.102 0,1.282l-2.119,0.588c-0.547,0.152 -0.975,0.58 -1.127,1.127l-0.588,2.119c-0.18,0.65 -1.102,0.65 -1.282,0l-0.588,-2.119c-0.152,-0.547 -0.58,-0.975 -1.127,-1.127l-2.119,-0.588c-0.65,-0.18 -0.65,-1.102 0,-1.282l2.119,-0.588c0.547,-0.152 0.975,-0.58 1.127,-1.127l0.588,-2.119c0.18,-0.65 1.102,-0.65 1.282,0z"></path></g></g>
+                            </svg>
+                            Carbon Impact Translation
+                        </span>
+                    </div>
+                    <div class="info-description" id="site-carbon-impact"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div id="controls" class="controls hidden">
+            <button id="reset-camera">Reset Viewport</button>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color green"></div>
+                    <span>Green Hosting (Renewable Energy)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color dark-green"></div>
+                    <span>Fossil Fuel Hosting</span>
+                </div>
+                <div class="legend-note">
+                    Size indicates website rank (larger = higher rank)
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Our JavaScript modules -->
+           <script src="utils.js?v=82"></script>
+           <script src="data-fetcher.js?v=82"></script>
+           <script src="particle-viz.js?v=82"></script>
+           <script src="main.js?v=82"></script>
+</body>
+</html>
