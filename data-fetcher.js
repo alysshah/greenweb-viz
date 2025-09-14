@@ -117,7 +117,7 @@ class DataFetcher {
         try {
             updateProgress(5, 'Fetching top 200 websites from Tranco...');
             
-            const response = await fetch('http://localhost:3000/api/tranco');
+            const response = await fetch('/api/tranco');
             
             if (!response.ok) {
                 throw new Error(`Tranco API error: ${response.status}`);
@@ -164,7 +164,7 @@ class DataFetcher {
         try {
             console.log(`🌱 Fetching green status for ${domain} via backend...`);
             
-            const response = await fetch(`http://localhost:3000/api/green?domain=${domain}`);
+            const response = await fetch(`/api/green?domain=${domain}`);
             
             if (!response.ok) {
                 throw new Error(`Server error: ${response.status}`);
@@ -208,9 +208,8 @@ class DataFetcher {
 
         try {
             console.log(`🔥 Calculating carbon data for ${domain} via backend...`);
-            console.log(`🔗 Backend URL: http://localhost:3000/api/carbon?domain=${domain}&green=${greenStatus}`);
             
-            const response = await fetch(`http://localhost:3000/api/carbon?domain=${domain}&green=${greenStatus}`);
+            const response = await fetch(`/api/carbon?domain=${domain}&green=${greenStatus}`);
             
             if (!response.ok) {
                 throw new Error(`Server error: ${response.status}`);
@@ -395,7 +394,7 @@ class DataFetcher {
     // Fetch carbon impact translation from backend
     async fetchCarbonImpact(co2PerPageView) {
         try {
-            const response = await fetch(`http://localhost:3000/api/gemini/carbon-impact?co2PerPageView=${co2PerPageView}`);
+            const response = await fetch(`/api/gemini/carbon-impact?co2PerPageView=${co2PerPageView}`);
             
             if (!response.ok) {
                 throw new Error(`Carbon impact API error: ${response.status}`);
