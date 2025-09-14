@@ -78,7 +78,7 @@ app.get('/api/carbon', async (req, res) => {
             green: data.green === 1,
             rating: data.rating || 'Unavailable',
             estimatedPageSize: estimatedBytes,
-            unavailable: !data.gco2e && !data.statistics?.energy && !data.cleanerThan
+            unavailable: false // Only set to true if the API call completely fails
         };
         
         // Cache for 1 hour
