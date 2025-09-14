@@ -11,7 +11,6 @@ To make the numbers meaningful, the system also uses **AI-powered translations**
 
 <img width="1512" height="982" alt="Screenshot 2025-09-14 at 12 50 17 AM" src="https://github.com/user-attachments/assets/04639cf3-f681-476d-ae83-53f5d54f3504" />
 <img width="1512" height="982" alt="Screenshot 2025-09-14 at 1 26 55 AM" src="https://github.com/user-attachments/assets/370322cc-8899-4eca-8fc6-50eed1381a8c" />
-<img width="811" height="660" alt="Screenshot 2025-09-13 at 10 08 35 PM" src="https://github.com/user-attachments/assets/233a4500-8e14-4ac0-853a-8a852d3e61fb" />
 
 ## 🚀 Live Demo  
 
