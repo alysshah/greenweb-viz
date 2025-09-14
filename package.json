@@ -1,0 +1,13 @@
+{
+  "name": "greenweb-current",
+  "version": "1.0.0",
+  "description": "A beautiful 3D visualization of website carbon footprints",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "cd backend && npm start",
+    "dev": "cd backend && npm run dev"
+  },
+  "keywords": ["carbon", "visualization", "3d", "environment", "web"],
+  "author": "Alyshah",
+  "license": "MIT"
+}
