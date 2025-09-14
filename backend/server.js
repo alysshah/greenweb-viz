@@ -42,18 +42,58 @@ app.get('/api/carbon', async (req, res) => {
         // Get Gemini page size estimation first
         let estimatedBytes;
         try {
-            const geminiResponse = await fetch(`http://localhost:3000/api/gemini/page-size?domain=${domain}`);
+            const prompt = `Analyze the website ${domain} and estimate its page size in bytes. Consider typical content like HTML, CSS, JavaScript, images, and other resources. Return only a JSON object with this exact format: {"estimatedPageSize": number}`;
             
-            if (geminiResponse.ok) {
-                const geminiData = await geminiResponse.json();
-                estimatedBytes = geminiData.estimatedPageSize;
-                console.log(`🤖 Gemini estimated page size for ${domain}: ${estimatedBytes} bytes`);
-            } else {
-                console.warn(`⚠️ Gemini API returned error for ${domain}`);
-                throw new Error('Gemini page size estimation failed');
+            // Add retry logic for network failures on Vercel
+            let retries = 3;
+            let lastError;
+            
+            while (retries > 0) {
+                try {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            contents: [{
+                                parts: [{
+                                    text: prompt
+                                }]
+                            }],
+                            generationConfig: {
+                                temperature: 0.1,
+                                maxOutputTokens: 100
+                            }
+                        }),
+                        // Add timeout for Vercel
+                        signal: AbortSignal.timeout(10000)
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const analysis = JSON.parse(data.candidates[0].content.parts[0].text);
+                        estimatedBytes = analysis.estimatedPageSize;
+                        console.log(`🤖 Gemini estimated page size for ${domain}: ${estimatedBytes} bytes`);
+                        break; // Success, exit retry loop
+                    } else {
+                        throw new Error(`Gemini API returned ${response.status}: ${response.statusText}`);
+                    }
+                } catch (error) {
+                    lastError = error;
+                    retries--;
+                    if (retries > 0) {
+                        console.warn(`⚠️ Gemini attempt failed for ${domain}, retrying... (${retries} attempts left)`);
+                        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+                    }
+                }
+            }
+            
+            if (retries === 0) {
+                throw lastError;
             }
         } catch (geminiError) {
-            console.error(`❌ Gemini page size estimation FAILED for ${domain}:`, {
+            console.error(`❌ Gemini page size estimation FAILED for ${domain} after retries:`, {
                 error: geminiError.message,
                 stack: geminiError.stack,
                 apiKey: process.env.GEMINI_API_KEY ? 'present' : 'missing'
