@@ -258,6 +258,9 @@ class DataFetcher {
                 estimatedPageSize: data.estimatedPageSize || null,
                 unavailable: !data.co2PerPageView && !data.energyPerVisit && !data.cleanerThan
             };
+            
+            // Debug: Log what the backend returned
+            console.log(`🔍 CARBON DEBUG ${domain}: Backend returned estimatedPageSize = ${data.estimatedPageSize}, result.estimatedPageSize = ${result.estimatedPageSize}`);
 
             // Cache successful result
             this.saveToCache(`carbon_${domain}`, result);
@@ -312,6 +315,9 @@ class DataFetcher {
                 ...carbonData,
                 carbonImpact: carbonImpact
             };
+            
+            // Debug: Log the estimatedPageSize to see what's happening
+            console.log(`🔍 DEBUG ${website.domain}: estimatedPageSize = ${result.estimatedPageSize}, carbonData.estimatedPageSize = ${carbonData?.estimatedPageSize}`);
             
             return result;
         } catch (error) {
