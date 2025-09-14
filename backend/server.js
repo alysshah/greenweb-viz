@@ -55,16 +55,9 @@ app.get('/api/carbon', async (req, res) => {
         } catch (geminiError) {
             console.warn(`⚠️ Gemini page size estimation failed for ${domain}:`, geminiError.message);
             
-            // No fallback - return unavailable state
-            console.log(`📊 Page size estimation unavailable for ${domain}`);
-            return res.json({
-                co2PerPageView: null,
-                energyPerVisit: null,
-                cleanerThan: null,
-                rating: 'Unavailable',
-                estimatedPageSize: null,
-                unavailable: true
-            });
+            // Use a default page size when Gemini fails
+            estimatedBytes = 1000000; // 1MB default
+            console.log(`📊 Using default page size for ${domain}: ${estimatedBytes} bytes`);
         }
         
         // Use the new /data endpoint
